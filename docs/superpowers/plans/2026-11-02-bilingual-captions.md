@@ -37,5 +37,9 @@
 
 ### Task 3: Publication
 
-- [ ] Review changes; run full tests, production build, desktop/mobile and PNG/ZIP checks.
+- [x] Review changes; run full tests, production build, desktop/mobile and PNG/ZIP checks.
 - [ ] Commit, merge into main, push and verify GitHub Pages deployment and live behavior.
+
+## Review record
+
+Independent review identified near-edge bilingual group overlap and a legacy footer font change. Regression tests reproduced both; separate text bands and the original fixed footer font resolve them. A consecutive CJK punctuation wrapping defect was also fixed because it affects ordinary Chinese captions. All 16 unit tests and the full desktop/mobile browser flow passed after the fixes. No review findings remain deferred.

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newSlide, captionContent, type CaptionStyle } from './model.ts';
-import { wrapText, layoutQuote } from './text-layout.ts';
+import { wrapText, layoutQuote, quoteFrames } from './text-layout.ts';
 const rect = { x: 0, y: 0, w: 1080, h: 675 };
 const measure = (text: string, style: CaptionStyle) => Array.from(text).length * style.size * .6;
 
@@ -25,6 +25,22 @@ test('CJK punctuation stays with the preceding character when wrapping', () => {
   const lines = wrapText('慢慢來，也是前進。', 3, s => s.length);
   assert.ok(lines.every(line => !/^[，。！？]/.test(line)));
   assert.equal(lines.join(''), '慢慢來，也是前進。');
+});
+
+test('consecutive closing punctuation stays with its preceding CJK character', () => {
+  assert.deepEqual(wrapText('真的嗎？！', 4, s => s.length), ['真的', '嗎？！']);
+});
+
+test('edge-clamped bilingual quotes occupy separate bands on single and text slides', () => {
+  for (const layout of ['single', 'text'] as const) {
+    const slide = newSlide([], '慢慢來\n也是前進', '慢慢來\n也是前進', layout, ['Take\nyour\ntime.\nSmall\nsteps.', 'Take\nyour\ntime.\nSmall\nsteps.']);
+    for (const [a, b] of [[5, 39], [61, 95], [5, 5], [95, 95], [95, 5]]) {
+      slide.texts[0].y = a; slide.texts[1].y = b;
+      const runs = quoteFrames(slide).map(f => layoutQuote(f.block, slide.languageMode, f.rect, measure)).sort((x, y) => x.top - y.top);
+      assert.ok(runs[0].top + runs[0].height <= runs[1].top, `${layout} positions ${a},${b} overlap`);
+      assert.ok(runs.every(run => run.top >= 0 && run.top + run.height <= 1350));
+    }
+  }
 });
 
 test('bilingual runs fit together inside a region and subtitles stay smaller', () => {

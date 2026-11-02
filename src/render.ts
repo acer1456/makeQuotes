@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, fontFamily, imageRects, textRegions, captionContent, type CaptionStyle, type Slide, type TextBlock } from './model';
+import { WIDTH, HEIGHT, fontFamily, imageRects, captionContent, type CaptionStyle, type LanguageMode, type Slide, type TextBlock } from './model';
 import { photoUrl } from './assets';
-import { layoutQuote } from './text-layout';
+import { layoutQuote, quoteFrames } from './text-layout';
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 export function loadImage(url: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(url);
@@ -17,10 +17,8 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
   imageCache.set(url, promise);
   return promise;
 }
-function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }, slide: Slide, i: number) {
-  const bilingual = slide.languageMode.includes('-');
-  const maxHeight = bilingual && (slide.layout === 'single' || slide.layout === 'text') ? Math.max(80, Math.abs(block.y - slide.texts[1 - i].y) / 100 * r.h - 24) : r.h * .78;
-  const quote = layoutQuote(block, slide.languageMode, r, (text, style) => { ctx.font = `${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`; return ctx.measureText(text).width; }, Math.min(r.h * .78, maxHeight));
+function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }, mode: LanguageMode) {
+  const quote = layoutQuote(block, mode, r, (text, style) => { ctx.font = `${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`; return ctx.measureText(text).width; });
   ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
   ctx.textBaseline = 'middle'; ctx.textAlign = block.align;
   ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 2;
@@ -38,7 +36,7 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
   const [loaded] = await Promise.all([
     Promise.all(rects.map(async (_, i) => { const p = slide.images[i]?.photo; if (slide.layout === 'text' || !p) return null; try { return await loadImage(p.url); } catch (e) { if (strict) throw e; return null; } })),
     Promise.all(slide.texts.flatMap(t => { const content = captionContent(t, slide.languageMode); const loadFont = (text: string, style: CaptionStyle) => document.fonts.load(`${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`, text || '字').catch(() => []); return [loadFont(content.main, t), loadFont(content.subtitle, t.subtitle)]; })),
-    document.fonts.load(`400 27px ${fontFamily(slide.texts[0].font)}`, author || '字').catch(() => []),
+    document.fonts.load(`400 27px ${fontFamily('serif')}`, author || '字').catch(() => []),
   ]);
   // Draw to a private buffer so stale asynchronous renders cannot partially paint a newer preview.
   const buffer = document.createElement('canvas'); buffer.width = width; buffer.height = width * HEIGHT / WIDTH;
@@ -57,8 +55,8 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
     }
     ctx.fillStyle = `rgba(0,0,0,${slide.overlay / 100})`; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
   });
-  slide.texts.forEach((t, i) => drawText(ctx, t, textRegions(slide.layout)[i], slide, i));
-  if (author) { ctx.font = `400 27px ${fontFamily(slide.texts[0].font)}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
+  quoteFrames(slide).forEach(frame => drawText(ctx, frame.block, frame.rect, slide.languageMode));
+  if (author) { ctx.font = `400 27px ${fontFamily('serif')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
   canvas.width = buffer.width; canvas.height = buffer.height; canvas.getContext('2d')!.drawImage(buffer, 0, 0);
 }
 export async function slideBlob(slide: Slide, author: string): Promise<Blob> {

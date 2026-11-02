@@ -1,6 +1,18 @@
-import { captionContent, type CaptionStyle, type LanguageMode, type TextBlock } from './model';
+import { captionContent, textRegions, type CaptionStyle, type LanguageMode, type Slide, type TextBlock } from './model';
 export type MeasureText = (text: string, style: CaptionStyle) => number;
 export interface CaptionRun { style: CaptionStyle; lines: string[]; lineHeight: number; height: number; }
+export function quoteFrames(slide: Slide) {
+  const regions = textRegions(slide.layout);
+  if (!slide.languageMode.includes('-') || (slide.layout !== 'single' && slide.layout !== 'text')) return slide.texts.map((block, i) => ({ block, rect: regions[i] }));
+  const full = regions[0];
+  const boundary = full.h * Math.max(.2, Math.min(.8, (slide.texts[0].y + slide.texts[1].y) / 200));
+  const firstIsUpper = slide.texts[0].y <= slide.texts[1].y;
+  return slide.texts.map((block, i) => {
+    const upper = (i === 0) === firstIsUpper;
+    const rect = { ...full, y: full.y + (upper ? 0 : boundary), h: upper ? boundary : full.h - boundary };
+    return { rect, block: { ...block, y: (full.y + full.h * block.y / 100 - rect.y) / rect.h * 100 } };
+  });
+}
 export function wrapText(text: string, width: number, measure: (text: string) => number): string[] {
   if (!text.trim()) return [];
   return text.split('\n').flatMap(paragraph => {
@@ -11,7 +23,10 @@ export function wrapText(text: string, width: number, measure: (text: string) =>
       if (!token) continue;
       if (line && measure(line + token) > width) {
         if (/^[，。！？、；：）』」]/u.test(token)) {
-          const chars = Array.from(line); token = chars.pop()! + token; line = chars.join('');
+          const chars = Array.from(line); let carry = '';
+          while (chars.length && /^[，。！？、；：）』」]/u.test(chars.at(-1)!)) carry = chars.pop()! + carry;
+          if (chars.length) carry = chars.pop()! + carry;
+          token = carry + token; line = chars.join('');
         }
         if (line) lines.push(line.trimEnd());
         line = '';
