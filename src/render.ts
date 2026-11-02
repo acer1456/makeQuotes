@@ -1,5 +1,6 @@
-import { WIDTH, HEIGHT, fontFamily, imageRects, textRegions, type Slide, type TextBlock } from './model';
+import { WIDTH, HEIGHT, fontFamily, imageRects, textRegions, captionContent, type CaptionStyle, type Slide, type TextBlock } from './model';
 import { photoUrl } from './assets';
+import { layoutQuote } from './text-layout';
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 export function loadImage(url: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(url);
@@ -16,38 +17,28 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
   imageCache.set(url, promise);
   return promise;
 }
-function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {
-  return text.split('\n').flatMap(paragraph => {
-    const lines: string[] = []; let line = '';
-    for (const char of Array.from(paragraph)) {
-      if (line && ctx.measureText(line + char).width > width) { lines.push(line); line = ''; }
-      line += char;
-    }
-    lines.push(line); return lines;
-  });
-}
-function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }) {
-  if (!block.text.trim()) return;
-  const padding = r.w * .07;
-  const anchorX = r.x + r.w * block.x / 100;
-  const maxWidth = Math.max(80, block.align === 'center' ? Math.min(anchorX - r.x - padding, r.x + r.w - padding - anchorX) * 2 : block.align === 'left' ? r.x + r.w - padding - anchorX : anchorX - r.x - padding);
-  let size = block.size;
-  let lines: string[] = [];
-  do { ctx.font = `${block.bold ? 700 : 400} ${size}px ${fontFamily(block.font)}`; lines = wrap(ctx, block.text, maxWidth); if (lines.length * size * 1.5 <= r.h * .78) break; size -= 1; } while (size > 16);
-  const total = lines.length * size * 1.5;
-  const targetY = r.y + r.h * block.y / 100;
-  const y = Math.min(r.y + r.h - 45 - total / 2, Math.max(r.y + 45 + total / 2, targetY));
+function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }, slide: Slide, i: number) {
+  const bilingual = slide.languageMode.includes('-');
+  const maxHeight = bilingual && (slide.layout === 'single' || slide.layout === 'text') ? Math.max(80, Math.abs(block.y - slide.texts[1 - i].y) / 100 * r.h - 24) : r.h * .78;
+  const quote = layoutQuote(block, slide.languageMode, r, (text, style) => { ctx.font = `${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`; return ctx.measureText(text).width; }, Math.min(r.h * .78, maxHeight));
   ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
-  ctx.textBaseline = 'middle'; ctx.textAlign = block.align; ctx.fillStyle = block.color;
+  ctx.textBaseline = 'middle'; ctx.textAlign = block.align;
   ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 2;
-  lines.forEach((line, i) => ctx.fillText(line, anchorX, y - total / 2 + (i + .5) * size * 1.5));
+  let top = quote.top;
+  for (const run of [quote.main, quote.subtitle]) {
+    if (!run) continue;
+    ctx.font = `${run.style.bold ? 700 : 400} ${run.style.size}px ${fontFamily(run.style.font)}`; ctx.fillStyle = run.style.color;
+    run.lines.forEach((line, n) => ctx.fillText(line, quote.x, top + (n + .5) * run.lineHeight));
+    top += run.height + (run === quote.main ? quote.gap : 0);
+  }
   ctx.restore();
 }
 export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, author: string, width = WIDTH, strict = false): Promise<void> {
   const rects = imageRects(slide.layout);
   const [loaded] = await Promise.all([
     Promise.all(rects.map(async (_, i) => { const p = slide.images[i]?.photo; if (slide.layout === 'text' || !p) return null; try { return await loadImage(p.url); } catch (e) { if (strict) throw e; return null; } })),
-    Promise.all(slide.texts.map(t => document.fonts.load(`${t.bold ? 700 : 400} ${t.size}px ${fontFamily(t.font)}`, t.text || '字').catch(() => []))),
+    Promise.all(slide.texts.flatMap(t => { const content = captionContent(t, slide.languageMode); const loadFont = (text: string, style: CaptionStyle) => document.fonts.load(`${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`, text || '字').catch(() => []); return [loadFont(content.main, t), loadFont(content.subtitle, t.subtitle)]; })),
+    document.fonts.load(`400 27px ${fontFamily(slide.texts[0].font)}`, author || '字').catch(() => []),
   ]);
   // Draw to a private buffer so stale asynchronous renders cannot partially paint a newer preview.
   const buffer = document.createElement('canvas'); buffer.width = width; buffer.height = width * HEIGHT / WIDTH;
@@ -66,8 +57,8 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
     }
     ctx.fillStyle = `rgba(0,0,0,${slide.overlay / 100})`; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
   });
-  slide.texts.forEach((t, i) => drawText(ctx, t, textRegions(slide.layout)[i]));
-  if (author) { ctx.font = `400 27px ${fontFamily('serif')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
+  slide.texts.forEach((t, i) => drawText(ctx, t, textRegions(slide.layout)[i], slide, i));
+  if (author) { ctx.font = `400 27px ${fontFamily(slide.texts[0].font)}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
   canvas.width = buffer.width; canvas.height = buffer.height; canvas.getContext('2d')!.drawImage(buffer, 0, 0);
 }
 export async function slideBlob(slide: Slide, author: string): Promise<Blob> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 export function IconButton({ label, children, onClick, disabled = false, className = '' }: { label: string; children: ReactNode; onClick: () => void; disabled?: boolean; className?: string }) { return <button className={`icon-button ${className}`} aria-label={label} title={label} onClick={onClick} disabled={disabled}>{children}</button>; }
-export function Slider({ label, value, min = 0, max = 100, step = 1, suffix = '', onChange }: { label: string; value: number; min?: number; max?: number; step?: number; suffix?: string; onChange: (v: number) => void }) { return <label className="slider-row"><span>{label}</span><input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)} /><output>{Number.isInteger(value) ? value : value.toFixed(1)}{suffix}</output></label>; }
+export function Slider({ label, ariaLabel = label, value, min = 0, max = 100, step = 1, suffix = '', onChange }: { label: string; ariaLabel?: string; value: number; min?: number; max?: number; step?: number; suffix?: string; onChange: (v: number) => void }) { return <label className="slider-row"><span>{label}</span><input aria-label={ariaLabel} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)} /><output>{Number.isInteger(value) ? value : value.toFixed(1)}{suffix}</output></label>; }
 export function Modal({ title, children, onClose, wide = false, busy = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean; busy?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose); close.current = onClose;

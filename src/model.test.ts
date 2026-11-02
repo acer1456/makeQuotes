@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseGenerated, parseProject, imageRects, newSlide, type Project } from './model.ts';
 
 test('AI output accepts fenced JSON and rejects incorrect slide counts', () => {
-  const slide = { top: '慢慢來', bottom: '也是一種前進', imageQuery: 'forest', layout: 'stack' };
+  const slide = { top: { zh: '慢慢來', en: 'Take your time.' }, bottom: { zh: '也是一種前進', en: 'You are still moving forward.' }, imageQuery: 'forest', layout: 'stack' };
   const text = '```json\n' + JSON.stringify({ title: '慢慢來', slides: [slide, slide] }) + '\n```';
   const result = parseGenerated(text, 2) as { slides: unknown[] };
   assert.equal(result.slides.length, 2);
@@ -22,7 +22,7 @@ test('split layouts cover exactly the 1080 by 1350 canvas', () => {
 });
 
 test('project round trip preserves edits while excluding unknown root data', () => {
-  const original: Project = { version: 1, title: '復健小日記', author: '@test', slides: [newSlide([], '第一步', '慢慢來', 'text')] };
+  const original: Project = { version: 2, title: '復健小日記', author: '@test', slides: [newSlide([], '第一步', '慢慢來', 'text')] };
   original.slides[0].texts[0].color = '#274139';
   const restored = parseProject(JSON.stringify({ ...original, apiKey: 'never-import-this' }));
   assert.equal(restored.title, original.title);
@@ -33,7 +33,7 @@ test('project round trip preserves edits while excluding unknown root data', () 
 });
 
 test('project import rejects non-finite dimensions and credential-bearing image URLs', () => {
-  const p: Project = { version: 1, title: 'test', author: '', slides: [newSlide()] };
+  const p: Project = { version: 2, title: 'test', author: '', slides: [newSlide()] };
   p.slides[0].texts[0].size = 200;
   assert.throws(() => parseProject(JSON.stringify(p)), /文字格式/);
   p.slides[0].texts[0].size = 54;

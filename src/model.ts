@@ -2,21 +2,29 @@ export const WIDTH = 1080;
 export const HEIGHT = 1350;
 export type Layout = 'single' | 'stack' | 'side' | 'text';
 export type Font = 'serif' | 'sans';
+export type LanguageMode = 'zh-en' | 'en-zh' | 'zh' | 'en';
+export const languageModes: { id: LanguageMode; label: string }[] = [{ id: 'zh-en', label: '中主・英副' }, { id: 'en-zh', label: '英主・中副' }, { id: 'zh', label: '僅中文' }, { id: 'en', label: '僅英文' }];
+export const fonts: { id: Font; label: string }[] = [{ id: 'sans', label: '思源黑體' }, { id: 'serif', label: '思源宋體' }];
 export interface Photo { url: string; name: string; source: string; sourceUrl: string; licenseUrl: string; tags: string; }
 export interface ImageSlot { photo: Photo | null; x: number; y: number; zoom: number; }
-export interface TextBlock { text: string; size: number; color: string; font: Font; bold: boolean; align: CanvasTextAlign; x: number; y: number; }
-export interface Slide { id: string; layout: Layout; images: ImageSlot[]; texts: TextBlock[]; overlay: number; background: string; }
-export interface Project { version: 1; title: string; author: string; slides: Slide[]; }
-export interface Generated { title: string; slides: { top: string; bottom: string; imageQuery: string; layout: Layout }[]; }
+export interface CaptionStyle { size: number; color: string; font: Font; bold: boolean; }
+export interface TextBlock extends CaptionStyle { text: string; en: string; subtitle: CaptionStyle; gap: number; align: CanvasTextAlign; x: number; y: number; }
+export interface Slide { id: string; layout: Layout; languageMode: LanguageMode; images: ImageSlot[]; texts: TextBlock[]; overlay: number; background: string; }
+export interface Project { version: 2; title: string; author: string; slides: Slide[]; }
+export interface BilingualQuote { zh: string; en: string; }
+export interface Generated { title: string; slides: { top: BilingualQuote; bottom: BilingualQuote; imageQuery: string; layout: Layout }[]; }
 export const layouts: { id: Layout; label: string }[] = [{ id: 'single', label: '全幅單圖' }, { id: 'stack', label: '上下雙圖' }, { id: 'side', label: '左右雙圖' }, { id: 'text', label: '純文字' }];
 export const fontFamily = (font: Font) => font === 'serif' ? '"Noto Serif TC", "Songti TC", serif' : '"Noto Sans TC", system-ui, sans-serif';
 export const imageRects = (layout: string) => layout === 'stack' ? [{ x: 0, y: 0, w: WIDTH, h: HEIGHT / 2 }, { x: 0, y: HEIGHT / 2, w: WIDTH, h: HEIGHT / 2 }] : layout === 'side' ? [{ x: 0, y: 0, w: WIDTH / 2, h: HEIGHT }, { x: WIDTH / 2, y: 0, w: WIDTH / 2, h: HEIGHT }] : [{ x: 0, y: 0, w: WIDTH, h: HEIGHT }];
 export const textRegions = (layout: Layout) => layout === 'text' || layout === 'single' ? [imageRects(layout)[0], imageRects(layout)[0]] : imageRects(layout);
-export function newSlide(photos: Photo[] = [], top = '慢慢來，\n也是一種前進', bottom = '讓身體，\n找回自己的節奏', layout: Layout = 'stack'): Slide {
-  return { id: crypto.randomUUID(), layout, images: [0, 1].map(i => ({ photo: photos[i] || photos[0] || null, x: 50, y: 50, zoom: 1 })), texts: [top, bottom].map((text, i) => ({ text, size: 54, color: '#ffffff', font: 'serif', bold: true, align: 'center', x: 50, y: layout === 'single' || layout === 'text' ? (i === 0 ? 39 : 62) : 50 })), overlay: 32, background: '#274139' };
+export function newSlide(photos: Photo[] = [], top = '慢慢來，\n也是一種前進', bottom = '讓身體，\n找回自己的節奏', layout: Layout = 'stack', english: [string, string] = ['', ''], languageMode: LanguageMode = 'zh-en'): Slide {
+  return { id: crypto.randomUUID(), layout, languageMode, images: [0, 1].map(i => ({ photo: photos[i] || photos[0] || null, x: 50, y: 50, zoom: 1 })), texts: [top, bottom].map((text, i) => ({ text, en: english[i], size: 56, color: '#ffffff', font: 'sans', bold: true, subtitle: { size: 34, color: '#ffffff', font: 'sans', bold: false }, gap: 26, align: 'center', x: 50, y: layout === 'single' || layout === 'text' ? (i === 0 ? 34 : 68) : 50 })), overlay: 32, background: '#274139' };
+}
+export function captionContent(block: TextBlock, mode: LanguageMode) {
+  return { main: mode.startsWith('zh') ? block.text : block.en, subtitle: mode === 'zh-en' ? block.en : mode === 'en-zh' ? block.text : '' };
 }
 export function changeLayout(slide: Slide, layout: Layout): Slide {
-  return { ...slide, layout, texts: slide.texts.map((t, i) => ({ ...t, x: 50, y: layout === 'single' || layout === 'text' ? (i === 0 ? 39 : 62) : 50 })) };
+  return { ...slide, layout, texts: slide.texts.map((t, i) => ({ ...t, x: 50, y: layout === 'single' || layout === 'text' ? (i === 0 ? 34 : 68) : 50 })) };
 }
 export function safeImageUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
@@ -34,25 +42,31 @@ export function parseGenerated(text: string, count: number): Generated {
   if (!isObject(data) || !string(data.title, 100) || !Array.isArray(data.slides)) throw new Error('AI 回傳內容不完整。');
   if (data.slides.length !== count) throw new Error('AI 回傳頁數不符，請重新生成。');
   for (const s of data.slides) {
-    if (!isObject(s) || !string(s.top, 200) || !string(s.bottom, 200) || !string(s.imageQuery, 100) || !layouts.some(l => l.id === s.layout)) throw new Error('AI 回傳內容或文字格式錯誤。');
+    if (!isObject(s) || ![s.top, s.bottom].every(q => isObject(q) && string(q.zh, 200) && (q.zh as string).trim() && string(q.en, 300) && (q.en as string).trim()) || !string(s.imageQuery, 100) || !layouts.some(l => l.id === s.layout)) throw new Error('AI 回傳中英對照內容不完整，請重新生成。');
   }
   return data as unknown as Generated;
 }
 export function parseProject(text: string): Project {
   let p: unknown;
   try { p = JSON.parse(text); } catch { throw new Error('專案 JSON 格式錯誤。'); }
-  if (!isObject(p) || p.version !== 1 || !string(p.title, 100) || !string(p.author, 40) || !Array.isArray(p.slides) || p.slides.length < 1 || p.slides.length > 20) throw new Error('專案格式錯誤，需包含 1–20 頁。');
+  if (!isObject(p) || ![1, 2].includes(Number(p.version)) || typeof p.version !== 'number' || !string(p.title, 100) || !string(p.author, 40) || !Array.isArray(p.slides) || p.slides.length < 1 || p.slides.length > 20) throw new Error('專案格式錯誤，需包含 1–20 頁。');
   for (const s of p.slides) {
     if (!isObject(s) || typeof s.id !== 'string' || !layouts.some(l => l.id === s.layout) || !bounded(s.overlay, 0, 90) || !color(s.background) || !Array.isArray(s.images) || s.images.length !== 2 || !Array.isArray(s.texts) || s.texts.length !== 2) throw new Error('專案頁面格式錯誤。');
+    if (p.version === 2 && !languageModes.some(m => m.id === s.languageMode)) throw new Error('專案語言模式格式錯誤。');
     for (const im of s.images) {
       if (!isObject(im) || !bounded(im.x, 0, 100) || !bounded(im.y, 0, 100) || !bounded(im.zoom, 1, 3)) throw new Error('專案圖片格式錯誤。');
       if (im.photo !== null && (!isObject(im.photo) || !safeImageUrl(im.photo.url) || !string(im.photo.name, 200) || !string(im.photo.tags, 200) || !string(im.photo.source, 50) || !safeLink(im.photo.sourceUrl) || !safeLink(im.photo.licenseUrl))) throw new Error('專案圖片網址或來源格式錯誤。');
     }
     for (const t of s.texts) {
       if (!isObject(t) || !string(t.text, 200) || !bounded(t.size, 24, 100) || !color(t.color) || !['serif', 'sans'].includes(String(t.font)) || typeof t.bold !== 'boolean' || !['left', 'center', 'right'].includes(String(t.align)) || !bounded(t.x, 5, 95) || !bounded(t.y, 5, 95)) throw new Error('專案文字格式錯誤。');
+      if (p.version === 2 && (!string(t.en, 300) || !bounded(t.gap, 0, 80) || !isObject(t.subtitle) || !bounded(t.subtitle.size, 16, 60) || (t.subtitle.size as number) >= (t.size as number) || !color(t.subtitle.color) || !['serif', 'sans'].includes(String(t.subtitle.font)) || typeof t.subtitle.bold !== 'boolean')) throw new Error('專案副文字格式錯誤。');
+    }
+    if (p.version === 1) {
+      s.languageMode = 'zh';
+      s.texts = s.texts.map(t => ({ ...t, en: '', gap: 26, subtitle: { size: Math.max(16, Math.min(34, Math.round((t.size as number) * .6))), color: t.color, font: 'sans', bold: false } }));
     }
   }
   const clean = p as unknown as Project;
-  return { version: 1, title: clean.title, author: clean.author, slides: clean.slides.map(s => ({ ...s, id: crypto.randomUUID() })) };
+  return { version: 2, title: clean.title, author: clean.author, slides: clean.slides.map(s => ({ ...s, id: crypto.randomUUID() })) };
 }
 function safeLink(value: unknown) { if (value === '') return true; try { return typeof value === 'string' && new URL(value).protocol === 'https:'; } catch { return false; } }
