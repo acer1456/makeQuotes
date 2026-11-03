@@ -1,6 +1,7 @@
 import { WIDTH, HEIGHT, fontFamily, imageRects, captionContent, type CaptionStyle, type LanguageMode, type Slide, type TextBlock } from './model';
 import { photoUrl } from './assets';
 import { layoutQuote, quoteFrames } from './text-layout';
+import { quoteGeometry, type QuoteGeometry } from './canvas-interaction';
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 export function loadImage(url: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(url);
@@ -36,8 +37,9 @@ function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: numbe
     top += run.height + (run === quote.main ? quote.gap : 0);
   }
   ctx.restore();
+  return quote;
 }
-export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, author: string, width = WIDTH, strict = false): Promise<void> {
+export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, author: string, width = WIDTH, strict = false): Promise<QuoteGeometry[]> {
   const rects = imageRects(slide.layout);
   const [loaded] = await Promise.all([
     Promise.all(rects.map(async (_, i) => { const p = slide.images[i]?.photo; if (slide.layout === 'text' || !p) return null; try { return await loadImage(p.url); } catch (e) { if (strict) throw e; return null; } })),
@@ -61,9 +63,13 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
     }
     ctx.fillStyle = `rgba(0,0,0,${slide.overlay / 100})`; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
   });
-  quoteFrames(slide).forEach(frame => drawText(ctx, frame.block, frame.rect, slide.languageMode));
+  const geometries = quoteFrames(slide).flatMap((frame, i) => {
+    const geometry = quoteGeometry(i, frame.block, frame.rect, drawText(ctx, frame.block, frame.rect, slide.languageMode));
+    return geometry ? [geometry] : [];
+  });
   if (author) { ctx.font = `400 27px ${fontFamily('serif')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
   canvas.width = buffer.width; canvas.height = buffer.height; canvas.getContext('2d')!.drawImage(buffer, 0, 0);
+  return geometries;
 }
 export async function slideBlob(slide: Slide, author: string): Promise<Blob> {
   const canvas = document.createElement('canvas'); await renderSlide(canvas, slide, author, WIDTH, true);
