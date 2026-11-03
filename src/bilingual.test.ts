@@ -17,7 +17,7 @@ test('new bilingual captions default to sans with a smaller independent subtitle
 test('version one imports preserve visible text, fonts and positions without inventing translations', () => {
   const old = legacy();
   const p = parseProject(JSON.stringify(old));
-  assert.equal(p.version, 2);
+  assert.equal(p.version, 3);
   assert.equal(p.slides[0].languageMode, 'zh');
   assert.equal(p.slides[0].texts[0].text, '原有第 1 段');
   assert.equal(p.slides[0].texts[0].en, '');

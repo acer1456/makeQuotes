@@ -13,5 +13,5 @@ export const photos = [
 export function initialProject(): Project {
   const captions = [['慢慢來，\n也是一種前進', '讓身體，\n找回自己的節奏'], ['把生活調回\n剛剛好的速度', '今天的你，\n已經很努力了'], ['在日常裡，\n練習更溫柔的自己', '休息，是為了\n走更長的路'], ['允許自己\n有喘息的空白', '不必每一刻，\n都用力向前'], ['一步一步，\n走向更喜歡的生活', '把耐心，\n也留一點給自己']];
   const english: [string, string][] = [['Slow progress\nis still progress.', 'Let your body\nfind its own rhythm.'], ['Bring life back\nto your own pace.', 'You have done\nenough for today.'], ['Practice being kinder\nto yourself.', 'Rest helps you\ngo further.'], ['Give yourself\nroom to breathe.', 'You do not have to\nkeep pushing.'], ['One step at a time,\ntoward a life you love.', 'Save a little patience\nfor yourself.']];
-  return { version: 2, title: '一點一點，找回自己的節奏', author: '@slow.rehab', slides: captions.map(([a, b], i) => newSlide([photos[(i * 2) % photos.length], photos[(i * 2 + 1) % photos.length]], a, b, 'stack', english[i])) };
+  return { version: 3, title: '一點一點，找回自己的節奏', author: '@slow.rehab', slides: captions.map(([a, b], i) => newSlide([photos[(i * 2) % photos.length], photos[(i * 2 + 1) % photos.length]], a.replace(/\n/g, ''), b.replace(/\n/g, ''), 'stack', english[i].map(t => t.replace(/\n/g, ' ')) as [string, string])) };
 }

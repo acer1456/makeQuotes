@@ -44,23 +44,31 @@ export function wrapText(text: string, width: number, measure: (text: string) =>
 }
 export function layoutQuote(block: TextBlock, mode: LanguageMode, rect: { x: number; y: number; w: number; h: number }, measure: MeasureText, maxHeight = rect.h * .78) {
   const content = captionContent(block, mode);
+  const mainText = block.quoteStyle === 'marks' && content.main.trim() ? (mode.startsWith('zh') ? `「${content.main}」` : `“${content.main}”`) : content.main;
+  const credit = [block.speaker.trim() ? `— ${block.speaker.trim()}` : '', block.source.trim()].filter(Boolean).join(' · ').replace(/\s+/g, ' ');
+  const creditStyle: CaptionStyle = { ...(mode.includes('-') ? block.subtitle : block), size: Math.min(26, block.size * .45, block.subtitle.size * .8), bold: false };
   const x = rect.x + rect.w * block.x / 100;
   const padding = rect.w * .07;
   const width = Math.max(80, block.align === 'center' ? Math.min(x - rect.x - padding, rect.x + rect.w - padding - x) * 2 : block.align === 'left' ? rect.x + rect.w - padding - x : x - rect.x - padding);
-  const run = (text: string, style: CaptionStyle, scale: number, leading: number): CaptionRun | null => {
+  const run = (text: string, style: CaptionStyle, scale: number, leading: number, single = block.lineMode === 'single'): CaptionRun | null => {
     if (!text.trim()) return null;
     const scaled = { size: style.size * scale, font: style.font, bold: style.bold, color: style.color };
-    const lines = wrapText(text, width, line => measure(line, scaled));
+    const lines = single ? [text] : wrapText(text, width, line => measure(line, scaled));
     return { style: scaled, lines, lineHeight: scaled.size * leading, height: lines.length * scaled.size * leading };
   };
-  let main: CaptionRun | null = null; let subtitle: CaptionRun | null = null; let gap = 0; let height = 0;
+  let main: CaptionRun | null = null; let subtitle: CaptionRun | null = null; let attribution: CaptionRun | null = null; let gap = 0; let attributionGap = 0; let height = 0;
+  const entries: [string, CaptionStyle][] = [[mainText, block], [content.subtitle, block.subtitle], [credit, creditStyle]];
+  const fittedEntries: [string, CaptionStyle][] = block.lineMode === 'single' ? entries : [[credit, creditStyle]];
+  const initialScale = Math.min(1, ...fittedEntries.map(([text, style]) => width / Math.max(1, measure(text, style))));
   for (let step = 0; step <= 99; step++) {
-    const scale = 1 - step * .01;
-    main = run(content.main, block, scale, 1.5); subtitle = run(content.subtitle, block.subtitle, scale, 1.6);
+    const scale = initialScale * (1 - step * .01);
+    main = run(mainText, block, scale, 1.5); subtitle = run(content.subtitle, block.subtitle, scale, 1.6); attribution = run(credit, creditStyle, scale, 1.4, true);
     gap = main && subtitle ? block.gap * scale : 0;
-    height = (main?.height || 0) + gap + (subtitle?.height || 0);
+    attributionGap = attribution && (main || subtitle) ? 18 * scale : 0;
+    height = (main?.height || 0) + gap + (subtitle?.height || 0) + attributionGap + (attribution?.height || 0);
     if (height <= maxHeight) break;
   }
   const center = Math.min(rect.y + rect.h - 45 - height / 2, Math.max(rect.y + 45 + height / 2, rect.y + rect.h * block.y / 100));
-  return { main, subtitle, gap, x, top: center - height / 2, height };
+  const measuredWidth = Math.max(0, ...[main, subtitle, attribution].flatMap(r => r ? r.lines.map(line => measure(line, r.style)) : []));
+  return { main, subtitle, attribution, gap, attributionGap, measuredWidth, x, top: center - height / 2, height };
 }

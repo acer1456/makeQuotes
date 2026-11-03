@@ -34,6 +34,7 @@ test('consecutive closing punctuation stays with its preceding CJK character', (
 test('edge-clamped bilingual quotes occupy separate bands on single and text slides', () => {
   for (const layout of ['single', 'text'] as const) {
     const slide = newSlide([], '慢慢來\n也是前進', '慢慢來\n也是前進', layout, ['Take\nyour\ntime.\nSmall\nsteps.', 'Take\nyour\ntime.\nSmall\nsteps.']);
+    slide.texts.forEach(t => { t.lineMode = 'wrap'; });
     for (const [a, b] of [[5, 39], [61, 95], [5, 5], [95, 95], [95, 5]]) {
       slide.texts[0].y = a; slide.texts[1].y = b;
       const runs = quoteFrames(slide).map(f => layoutQuote(f.block, slide.languageMode, f.rect, measure)).sort((x, y) => x.top - y.top);
@@ -45,6 +46,7 @@ test('edge-clamped bilingual quotes occupy separate bands on single and text sli
 
 test('bilingual runs fit together inside a region and subtitles stay smaller', () => {
   const t = newSlide([], '慢慢來'.repeat(35), '下一段', 'stack', ['Every small step counts. '.repeat(10), 'Next.']).texts[0];
+  t.lineMode = 'wrap';
   const runs = layoutQuote(t, 'zh-en', rect, measure);
   assert.ok(runs.main && runs.subtitle);
   assert.ok(runs.main.style.size > runs.subtitle.style.size);

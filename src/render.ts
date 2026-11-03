@@ -20,11 +20,17 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }, mode: LanguageMode) {
   const quote = layoutQuote(block, mode, r, (text, style) => { ctx.font = `${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`; return ctx.measureText(text).width; });
   ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+  if (block.quoteStyle === 'card' && quote.height) {
+    const left = block.align === 'center' ? quote.x - quote.measuredWidth / 2 : block.align === 'right' ? quote.x - quote.measuredWidth : quote.x;
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(left - 28, quote.top - 20, quote.measuredWidth + 56, quote.height + 40);
+    ctx.fillStyle = block.color; ctx.fillRect(left - 28, quote.top - 20, 4, quote.height + 40);
+  }
   ctx.textBaseline = 'middle'; ctx.textAlign = block.align;
   ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 2;
   let top = quote.top;
-  for (const run of [quote.main, quote.subtitle]) {
+  for (const run of [quote.main, quote.subtitle, quote.attribution]) {
     if (!run) continue;
+    if (run === quote.attribution) top += quote.attributionGap;
     ctx.font = `${run.style.bold ? 700 : 400} ${run.style.size}px ${fontFamily(run.style.font)}`; ctx.fillStyle = run.style.color;
     run.lines.forEach((line, n) => ctx.fillText(line, quote.x, top + (n + .5) * run.lineHeight));
     top += run.height + (run === quote.main ? quote.gap : 0);
@@ -35,7 +41,7 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
   const rects = imageRects(slide.layout);
   const [loaded] = await Promise.all([
     Promise.all(rects.map(async (_, i) => { const p = slide.images[i]?.photo; if (slide.layout === 'text' || !p) return null; try { return await loadImage(p.url); } catch (e) { if (strict) throw e; return null; } })),
-    Promise.all(slide.texts.flatMap(t => { const content = captionContent(t, slide.languageMode); const loadFont = (text: string, style: CaptionStyle) => document.fonts.load(`${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`, text || '字').catch(() => []); return [loadFont(content.main, t), loadFont(content.subtitle, t.subtitle)]; })),
+    Promise.all(slide.texts.flatMap(t => { const content = captionContent(t, slide.languageMode); const credit = `${t.speaker} ${t.source}`; const loadFont = (text: string, style: CaptionStyle) => document.fonts.load(`${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`, text || '字').catch(() => []); return [loadFont(content.main + (t.quoteStyle === 'marks' ? '「」“”' : ''), t), loadFont(content.subtitle, t.subtitle), ...(credit.trim() ? [loadFont(credit, { ...t, bold: false }), loadFont(credit, { ...t.subtitle, bold: false })] : [])]; })),
     document.fonts.load(`400 27px ${fontFamily('serif')}`, author || '字').catch(() => []),
   ]);
   // Draw to a private buffer so stale asynchronous renders cannot partially paint a newer preview.
