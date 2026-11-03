@@ -29,6 +29,14 @@ export function captionContent(block: TextBlock, mode: LanguageMode) {
 export function changeLayout(slide: Slide, layout: Layout): Slide {
   return { ...slide, layout, texts: slide.texts.map((t, i) => ({ ...t, x: 50, y: layout === 'single' || layout === 'text' ? (i === 0 ? 34 : 68) : 50 })) };
 }
+export function applySlideSettings(source: Slide, target: Slide): Slide {
+  const settings = structuredClone(source);
+  return {
+    ...settings, id: target.id,
+    images: settings.images.map((slot, i) => ({ ...slot, photo: target.images[i].photo })),
+    texts: settings.texts.map((block, i) => ({ ...block, text: target.texts[i].text, en: target.texts[i].en, speaker: target.texts[i].speaker, source: target.texts[i].source })),
+  };
+}
 export function safeImageUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
