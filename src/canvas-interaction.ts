@@ -14,11 +14,10 @@ export function canvasPoint(client: Point, rect: { left: number; top: number; wi
   return { x: (client.x - rect.left) * WIDTH / rect.width, y: (client.y - rect.top) * HEIGHT / rect.height };
 }
 export function moveTextBlock(slide: Slide, geometry: QuoteGeometry, delta: Point): TextBlock {
-  const { bounds: b, frame: f, anchorX, centerY, index } = geometry;
+  const { anchorX, centerY, index } = geometry;
   const region = textRegions(slide.layout)[index];
-  const within = (value: number, min: number, max: number, current: number) => min <= max ? clamp(value, min, max) : current;
-  const x = within(anchorX + delta.x, f.x + f.w * .07 + anchorX - b.x, f.x + f.w * .93 - (b.x + b.w - anchorX), anchorX);
-  const y = within(centerY + delta.y, f.y + 45 + centerY - b.y, f.y + f.h - 45 - (b.y + b.h - centerY), centerY);
+  const x = anchorX + delta.x;
+  const y = centerY + delta.y;
   const percent = (value: number) => Math.round(clamp(value, 5, 95) * 10) / 10;
   return { ...slide.texts[index], x: percent((x - region.x) / region.w * 100), y: percent((y - region.y) / region.h * 100) };
 }

@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { newSlide, parseProject, fonts } from './model.ts';
 import { layoutQuote } from './text-layout.ts';
 const measure = (text: string, style: { size: number }) => Array.from(text).length * style.size * .6;
-test('new quotes default to a single line per language and shrink to fit width', () => {
+test('single-line quotes retain chosen font sizes even when wider than the canvas', () => {
   const slide = newSlide([], '慢慢來，也是前進'.repeat(6), '下一段', 'stack', ['Every small step is still progress. '.repeat(4), 'Next.']);
   assert.equal(slide.texts[0].lineMode, 'single');
   const run = layoutQuote(slide.texts[0], 'zh-en', { x: 0, y: 0, w: 540, h: 1350 }, measure);
   assert.equal(run.main?.lines.length, 1); assert.equal(run.subtitle?.lines.length, 1);
-  assert.ok(measure(run.main!.lines[0], run.main!.style) <= 464.5);
-  assert.ok(measure(run.subtitle!.lines[0], run.subtitle!.style) <= 464.5);
+  assert.equal(run.main!.style.size, slide.texts[0].size);
+  assert.ok(run.measuredWidth > 540);
+  assert.equal(run.subtitle!.style.size, slide.texts[0].subtitle.size);
   assert.ok(run.main!.style.size > run.subtitle!.style.size);
 });
 test('manual wrapping remains available and quote attribution participates in layout', () => {
@@ -20,10 +21,11 @@ test('manual wrapping remains available and quote attribution participates in la
   assert.ok(run.attribution?.lines[0].includes('作者')); assert.ok(run.attribution?.lines[0].includes('一本書'));
   assert.ok(run.attribution!.style.size < run.main!.style.size);
 });
-test('long quote sources stay inside the canvas even when body wrapping is enabled', () => {
+test('long quote sources retain their size and may extend beyond the canvas', () => {
   const t = newSlide().texts[0]; t.lineMode = 'wrap'; t.speaker = 'Alex'; t.source = 'A very long source title '.repeat(5);
   const run = layoutQuote(t, 'zh-en', { x: 0, y: 0, w: 540, h: 675 }, measure);
-  assert.ok(run.measuredWidth <= 464.5);
+  assert.ok(run.measuredWidth > 540);
+  assert.equal(run.attribution!.style.size, Math.min(26, t.size * .45, t.subtitle.size * .8));
 });
 test('project round trip preserves English fonts, quote styles, credits and line modes', () => {
   const slide = newSlide(); slide.texts[0].subtitle.font = 'lora'; slide.texts[0].quoteStyle = 'card'; slide.texts[0].speaker = 'Alex'; slide.texts[0].source = 'A book';

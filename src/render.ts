@@ -20,7 +20,7 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 }
 function drawText(ctx: CanvasRenderingContext2D, block: TextBlock, r: { x: number; y: number; w: number; h: number }, mode: LanguageMode) {
   const quote = layoutQuote(block, mode, r, (text, style) => { ctx.font = `${style.bold ? 700 : 400} ${style.size}px ${fontFamily(style.font)}`; return ctx.measureText(text).width; });
-  ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+  ctx.save();
   if (block.quoteStyle === 'card' && quote.height) {
     const left = block.align === 'center' ? quote.x - quote.measuredWidth / 2 : block.align === 'right' ? quote.x - quote.measuredWidth : quote.x;
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(left - 28, quote.top - 20, quote.measuredWidth + 56, quote.height + 40);
@@ -67,7 +67,7 @@ export async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, autho
     const geometry = quoteGeometry(i, frame.block, frame.rect, drawText(ctx, frame.block, frame.rect, slide.languageMode));
     return geometry ? [geometry] : [];
   });
-  if (author) { ctx.font = `400 27px ${fontFamily('serif')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55, WIDTH * .8); }
+  if (author) { ctx.font = `400 27px ${fontFamily('serif')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = slide.texts[1].color; ctx.shadowColor = '#0008'; ctx.shadowBlur = 8; ctx.fillText(author, WIDTH / 2, HEIGHT - 55); }
   canvas.width = buffer.width; canvas.height = buffer.height; canvas.getContext('2d')!.drawImage(buffer, 0, 0);
   return geometries;
 }

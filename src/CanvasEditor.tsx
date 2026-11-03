@@ -20,7 +20,11 @@ export function CanvasEditor({ slide, author, selected, onSelect, onChange }: Pr
     e.preventDefault(); e.stopPropagation(); e.currentTarget.focus({ preventScroll: true });
     onSelect(geometry.index);
     const client = { x: e.clientX, y: e.clientY };
-    drag.current = { pointerId: e.pointerId, base: slide, geometry, part, start: canvasPoint(client, root.current!.getBoundingClientRect()), client, latest: slide, moved: false };
+    const canvasRect = root.current!.getBoundingClientRect();
+    const box = e.currentTarget.parentElement!.getBoundingClientRect();
+    const corner = canvasPoint({ x: box.left, y: box.top }, canvasRect);
+    const visibleGeometry = { ...geometry, bounds: { ...corner, w: box.width * WIDTH / canvasRect.width, h: box.height * HEIGHT / canvasRect.height } };
+    drag.current = { pointerId: e.pointerId, base: slide, geometry: visibleGeometry, part, start: canvasPoint(client, canvasRect), client, latest: slide, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent<HTMLButtonElement>) {
@@ -72,9 +76,13 @@ export function CanvasEditor({ slide, author, selected, onSelect, onChange }: Pr
     <div className="canvas-text-controls" onPointerDown={e => { if (e.target === e.currentTarget) onSelect(null); }}>
       {rendered?.slide.id === slide.id && rendered.bounds.map(g => {
         const active = selected === g.index; const block = shown.texts[g.index];
-        return <div key={g.index} className={`canvas-quote ${active ? 'selected' : ''}`} style={{ left: `${(g.bounds.x + g.bounds.w / 2) / WIDTH * 100}%`, top: `${(g.bounds.y + g.bounds.h / 2) / HEIGHT * 100}%`, width: `${g.bounds.w / WIDTH * 100}%`, height: `${g.bounds.h / HEIGHT * 100}%` }}>
+        // Keep editing handles visible even when the text extends beyond the canvas.
+        const left = Math.max(0, g.bounds.x); const top = Math.max(0, g.bounds.y);
+        const width = Math.max(0, Math.min(WIDTH, g.bounds.x + g.bounds.w) - left);
+        const height = Math.max(0, Math.min(HEIGHT, g.bounds.y + g.bounds.h) - top);
+        return <div key={g.index} className={`canvas-quote ${active ? 'selected' : ''}`} style={{ left: `${(left + width / 2) / WIDTH * 100}%`, top: `${(top + height / 2) / HEIGHT * 100}%`, width: `${width / WIDTH * 100}%`, height: `${height / HEIGHT * 100}%` }}>
           <button className="canvas-quote-move" aria-label={`移動語錄 ${g.index + 1}`} aria-pressed={active} title="拖曳移動文字；方向鍵微調，Shift 加速" onFocus={() => { if (!active) onSelect(g.index); }} {...control(g, 'move')}/>
-          {active && <>{g.mainSize !== null && <button className="canvas-font-handle main" aria-label={`調整語錄 ${g.index + 1} 主文字字級`} title={`主文字 ${block.size}px · 拖曳調整字級，方向鍵微調`} {...control(g, 'main')}>主</button>}{g.subtitleSize !== null && <button className="canvas-font-handle subtitle" aria-label={`調整語錄 ${g.index + 1} 副文字字級`} title={`副文字 ${block.subtitle.size}px · 拖曳調整字級，方向鍵微調`} {...control(g, 'subtitle')}>副</button>}</>}
+          {active && <>{g.mainSize !== null && <button className="canvas-font-handle main" style={{ right: g.bounds.x + g.bounds.w >= WIDTH ? 0 : undefined, bottom: g.bounds.y + g.bounds.h >= HEIGHT ? 0 : undefined }} aria-label={`調整語錄 ${g.index + 1} 主文字字級`} title={`主文字 ${block.size}px · 拖曳調整字級，方向鍵微調`} {...control(g, 'main')}>主</button>}{g.subtitleSize !== null && <button className="canvas-font-handle subtitle" style={{ left: g.bounds.x <= 0 ? 0 : undefined, bottom: g.bounds.y + g.bounds.h >= HEIGHT ? 0 : undefined }} aria-label={`調整語錄 ${g.index + 1} 副文字字級`} title={`副文字 ${block.subtitle.size}px · 拖曳調整字級，方向鍵微調`} {...control(g, 'subtitle')}>副</button>}</>}
         </div>;
       })}
     </div>

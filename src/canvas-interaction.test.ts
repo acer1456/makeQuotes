@@ -26,13 +26,15 @@ test('font resizing preserves both languages and enforces main/subtitle size hie
   const sub = resizeTextBlock(t, 'subtitle', 100); assert.equal(sub.size, 56); assert.equal(sub.subtitle.size, 55);
   assert.equal(sub.text, '中文'); assert.equal(sub.en, 'English.'); assert.equal(t.size, 56);
 });
-test('a full-width quote card keeps its horizontal anchor during vertical movement', () => {
-  const s = newSlide([], '這是一句需要自動縮字才能放入畫布的很長很長很長很長的語錄', '下一段', 'stack', ['A long quote.', 'Next.']);
+test('an oversized quote card moves freely without fitting its bounds inside the canvas', () => {
+  const s = newSlide([], '這是一句超出畫布但保留設定字級的很長很長很長很長的語錄', '下一段', 'stack', ['A long quote.', 'Next.']);
   s.texts[0].quoteStyle = 'card';
   const frame = quoteFrames(s)[0];
   const geometry = quoteGeometry(0, frame.block, frame.rect, layoutQuote(frame.block, s.languageMode, frame.rect, measure)); assert.ok(geometry);
   const moved = moveTextBlock(s, geometry, { x: 0, y: 20 });
   assert.equal(moved.x, s.texts[0].x); assert.ok(moved.y > s.texts[0].y);
+  const horizontal = moveTextBlock(s, geometry, { x: -100, y: 0 });
+  assert.ok(horizontal.x < s.texts[0].x); assert.equal(horizontal.y, s.texts[0].y);
 });
 test('opposite-corner dragging increases either font and crossing the pivot never reverses growth', () => {
   const bounds = { x: 100, y: 100, w: 200, h: 100 };

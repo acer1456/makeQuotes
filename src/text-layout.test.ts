@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newSlide, captionContent, type CaptionStyle } from './model.ts';
-import { wrapText, layoutQuote, quoteFrames } from './text-layout.ts';
+import { layoutQuote, quoteFrames } from './text-layout.ts';
 const rect = { x: 0, y: 0, w: 1080, h: 675 };
 const measure = (text: string, style: CaptionStyle) => Array.from(text).length * style.size * .6;
 
@@ -15,44 +15,29 @@ test('all four modes select the correct language without mutating saved content'
   assert.equal(t.text, '慢慢來');
 });
 
-test('English wraps at words and preserves deliberate newlines', () => {
-  assert.deepEqual(wrapText('Slow progress is still progress.', 13, s => s.length), ['Slow progress', 'is still', 'progress.']);
-  assert.deepEqual(wrapText('Take your time.\nEvery step counts.', 100, s => s.length), ['Take your time.', 'Every step counts.']);
-  assert.deepEqual(wrapText('abcdefghijkl', 5, s => s.length), ['abcde', 'fghij', 'kl']);
-});
-
-test('CJK punctuation stays with the preceding character when wrapping', () => {
-  const lines = wrapText('慢慢來，也是前進。', 3, s => s.length);
-  assert.ok(lines.every(line => !/^[，。！？]/.test(line)));
-  assert.equal(lines.join(''), '慢慢來，也是前進。');
-});
-
-test('consecutive closing punctuation stays with its preceding CJK character', () => {
-  assert.deepEqual(wrapText('真的嗎？！', 4, s => s.length), ['真的', '嗎？！']);
-});
-
-test('edge-clamped bilingual quotes occupy separate bands on single and text slides', () => {
-  for (const layout of ['single', 'text'] as const) {
-    const slide = newSlide([], '慢慢來\n也是前進', '慢慢來\n也是前進', layout, ['Take\nyour\ntime.\nSmall\nsteps.', 'Take\nyour\ntime.\nSmall\nsteps.']);
-    slide.texts.forEach(t => { t.lineMode = 'wrap'; });
-    for (const [a, b] of [[5, 39], [61, 95], [5, 5], [95, 95], [95, 5]]) {
-      slide.texts[0].y = a; slide.texts[1].y = b;
-      const runs = quoteFrames(slide).map(f => layoutQuote(f.block, slide.languageMode, f.rect, measure)).sort((x, y) => x.top - y.top);
-      assert.ok(runs[0].top + runs[0].height <= runs[1].top, `${layout} positions ${a},${b} overlap`);
-      assert.ok(runs.every(run => run.top >= 0 && run.top + run.height <= 1350));
-    }
-  }
-});
-
-test('bilingual runs fit together inside a region and subtitles stay smaller', () => {
-  const t = newSlide([], '慢慢來'.repeat(35), '下一段', 'stack', ['Every small step counts. '.repeat(10), 'Next.']).texts[0];
+test('manual line breaks are preserved without width-based wrapping or resizing', () => {
+  const t = newSlide([], '慢慢來\n也是前進', '下一段', 'stack', ['A long English sentence that stays on one line.\nNext line.', 'Next.']).texts[0];
   t.lineMode = 'wrap';
-  const runs = layoutQuote(t, 'zh-en', rect, measure);
-  assert.ok(runs.main && runs.subtitle);
-  assert.ok(runs.main.style.size > runs.subtitle.style.size);
-  assert.ok(runs.height <= rect.h * .78 + .1);
-  assert.ok(runs.top >= 0 && runs.top + runs.height <= rect.h);
-  assert.ok(runs.main.height + runs.gap + runs.subtitle.height <= runs.height + .1);
+  const run = layoutQuote(t, 'zh-en', { ...rect, w: 100, h: 50 }, measure);
+  assert.deepEqual(run.main?.lines, ['慢慢來', '也是前進']);
+  assert.deepEqual(run.subtitle?.lines, ['A long English sentence that stays on one line.', 'Next line.']);
+  assert.equal(run.main?.style.size, t.size); assert.equal(run.subtitle?.style.size, t.subtitle.size);
+  assert.ok(run.height > 50); assert.equal(run.top + run.height / 2, 25);
+});
+
+test('overlapping quote positions remain exactly as the user set them in every layout', () => {
+  for (const layout of ['single', 'text', 'stack', 'side'] as const) {
+    const slide = newSlide([], '慢慢來'.repeat(30), '也是前進', layout, ['Take your time.'.repeat(20), 'Next.']);
+    slide.texts.forEach(t => { t.x = 95; t.y = 5; });
+    const frames = quoteFrames(slide);
+    frames.forEach(f => {
+      const run = layoutQuote(f.block, slide.languageMode, f.rect, measure);
+      assert.equal(run.main?.style.size, f.block.size);
+      assert.equal(run.x, f.rect.x + f.rect.w * .95);
+      assert.ok(Math.abs(run.top + run.height / 2 - (f.rect.y + f.rect.h * .05)) < .001);
+    });
+    if (layout === 'single' || layout === 'text') assert.deepEqual(frames[0].rect, frames[1].rect);
+  }
 });
 
 test('single-language mode leaves no subtitle gap and keeps independently selected fonts', () => {
