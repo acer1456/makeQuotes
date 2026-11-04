@@ -1,4 +1,5 @@
 import { parseGenerated, type Photo, type Generated } from './model';
+import { carouselSystemPrompt } from './ai-prompts';
 export interface Model { id: string; name: string; free: boolean; structured: boolean; }
 async function readJson(response: Response) {
   const data = await response.json().catch(() => null);
@@ -19,7 +20,7 @@ export async function generateCarousel(key: string, model: Model, prompt: string
   const schema = { type: 'object', additionalProperties: false, properties: { title: { type: 'string' }, slides: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { top: quote, bottom: quote, imageQuery: { type: 'string' }, layout: { type: 'string', enum: ['single', 'stack', 'side', 'text'] } }, required: ['top', 'bottom', 'imageQuery', 'layout'] } } }, required: ['title', 'slides'] };
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST', headers: { Authorization: `Bearer ${key.trim()}`, 'Content-Type': 'application/json', 'X-Title': 'Slow Carousel Studio' }, signal,
-    body: JSON.stringify({ model: model.id, messages: [{ role: 'system', content: `你是繁體中文 IG 輪播編輯。根據使用者主題產生恰好 ${count} 頁、有起承轉合的內容。簡短、溫柔、具體，不使用 emoji。若涉及復健或醫療，僅提供一般衛教，不診斷、不保證療效、不提供危險動作，必要時提醒個別評估。每頁 top、bottom 都包含 zh（繁體中文）與 en（對應英文），兩種語言語意一致，英文自然簡潔，不要逐字硬譯。每段中文 8–35 字，英文 3–18 個單字，每段維持一句，不要換行。speaker、source 只在使用者提供可確認的作者與來源時填入，否則留空；不可把原創文案假託給名人，也不要在正文重複作者或來源；imageQuery 是 1–3 個英文自然／生活照片搜尋詞，不要中文字；layout 可用 single、stack、side、text，以 stack 為主。只輸出 JSON：{"title":"標題","slides":[{"top":{"zh":"上方中文","en":"Upper English quote","speaker":"","source":""},"bottom":{"zh":"下方中文","en":"Lower English quote","speaker":"","source":""},"imageQuery":"forest sunlight","layout":"stack"}]}。不要模仿附件原文。` }, { role: 'user', content: prompt }], ...(model.structured ? { response_format: { type: 'json_schema', json_schema: { name: 'carousel', strict: true, schema } }, provider: { require_parameters: true } } : {}) }),
+    body: JSON.stringify({ model: model.id, messages: [{ role: 'system', content: carouselSystemPrompt(count) }, { role: 'user', content: prompt }], ...(model.structured ? { response_format: { type: 'json_schema', json_schema: { name: 'carousel', strict: true, schema } }, provider: { require_parameters: true } } : {}) }),
   });
   const data = await readJson(response);
   const content = data?.choices?.[0]?.message?.content;

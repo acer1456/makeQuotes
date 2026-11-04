@@ -1,4 +1,12 @@
 import { parseProject, type Project } from './model';
+const lastModelKey = 'slow-studio:last-openrouter-model';
+export function loadLastModel(): string {
+  try { return localStorage.getItem(lastModelKey) || ''; } catch { return ''; }
+}
+export function saveLastModel(id: string) {
+  if (!id) return;
+  try { localStorage.setItem(lastModelKey, id); } catch { /* Editing still works when browser storage is unavailable. */ }
+}
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => { const req = indexedDB.open('slow-studio', 1); req.onupgradeneeded = () => req.result.createObjectStore('draft'); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
 }
